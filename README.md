@@ -1,78 +1,37 @@
 # Token Market Cap Tracker
 
-**Normalize token market observations and retain deduplicated snapshot history.**
-
 ![Language: JavaScript](https://img.shields.io/badge/Language-JavaScript-F7DF1E?style=flat-square&logo=javascript) ![Store: SQLite](https://img.shields.io/badge/Store-SQLite-555555?style=flat-square) [![License: MIT](https://img.shields.io/badge/License-MIT-555555?style=flat-square)](LICENSE)
 
-[Overview](#overview) · [Quickstart](#quickstart) · [Example](#example) · [Validation](#validation) · [Documentation](#documentation)
+Discover launchpad tokens through `gmgn-cli` and retain repeated market-cap observations in SQLite and JSONL.
 
-## Overview
+The store distinguishes a token's identity from its later samples. Token metadata is upserted by chain/address, while observation rows retain sampling time, category, market data and original normalized input.
 
-A read-only token discovery agent that normalizes market-cap observations and persists deduplicated snapshots.
+## Run the local checks
 
-**Stack:** JavaScript · Node.js 24 · gmgn-cli · SQLite · JSONL · node:test
-
-## Identity and observations have separate lifetimes
-
-| Component | Behavior |
-| --- | --- |
-| Adapter | The external source CLI is isolated behind an adapter. |
-| Normalize | Samples retain market cap, liquidity and source timestamps. |
-| Persist | SQLite distinguishes initial token discovery from subsequent snapshots. |
-
-## Processing path
-
-```mermaid
-flowchart LR
-  N0["Configured market source"]
-  N1["CLI adapter"]
-  N2["normalized token sample"]
-  N3["SQLite identity/snapshots"]
-  N4["JSONL export"]
-N0 --> N1 --> N2 --> N3 --> N4
-```
-
-## Quickstart
+Requires Node.js 24+ for the built-in SQLite API:
 
 ```console
 npm ci --ignore-scripts
-npm run check
-node --test test/normalize.test.js test/storage.test.js
+npm test
+node src/agent.js --help
 ```
 
-The commands above install prerequisites or run the specified offline checks. Live collection, cloud operations, messaging and trading are separate operational steps when present.
+[normalize.js](src/normalize.js) handles input normalization; [storage.js](src/storage.js) writes token/sample rows in a database transaction. JSONL append happens after that transaction, so the two output formats should not be described as one atomic database transaction.
 
-## Example
+## Bound an operational collection
 
-**Inspect the workflow**
+With your own GMGN credentials configured locally:
 
-Inspect normalization/storage fixtures to follow a token identity across repeated samples. A first discovery and a later sample represent different events. JSONL output can feed downstream analysis without making a snapshot into a price forecast.
+```console
+node src/agent.js --chain sol --types new_creation --poll-ms 5000 --limit 20 --max-cycles 3
+```
 
-## Configuration and storage
+This command contacts the source. Supported chains are `sol`, `bsc` and `base`; default categories include `new_creation`, `near_completion` and `completed`. The [config loader](src/config.js) rejects polling intervals below 1000 ms and limits outside 1–80.
 
-Node.js 24+, SQLite and an external gmgn-cli source. [.env.example](.env.example) defines API access, chain, polling, database, JSONL path and maximum-cycle settings. Live sampling is separate from the offline suite.
+`--db` and `--jsonl` select output paths. Optional platform/preset filters narrow collection. Defaults write under `data/`; provider credentials and collected datasets remain local.
 
-## Repository guide
+A first discovery and a later market-cap sample are different events. Neither a snapshot nor a category transition is a forecast, a completed trade or proof that an upstream field is accurate.
 
-| Location | Responsibility |
-| --- | --- |
-| [src/gmgn-cli.js](src/gmgn-cli.js) | Source adapter |
-| [src/normalize.js](src/normalize.js) | Observation normalization |
-| [src/storage.js](src/storage.js) | Identity and snapshot persistence |
-| [src/agent.js](src/agent.js) | Polling orchestration |
+**Technology:** JavaScript · Node.js 24 · gmgn-cli · SQLite · JSONL · node:test
 
-## Validation
-
-These checks use offline fixtures or controlled backends.
-
-## Scope and operational boundaries
-
-Unit tests do not establish current API access, quotas or sampling reliability. The documented agent flow reads and records observations; token purchase, signing and broadcast are outside it.
-
-## Documentation
-
-- The repository guide above links directly to the implementation and configuration files.
-
-## License and attribution
-
-Project-authored source code is licensed under the [MIT License](LICENSE). Third-party components and datasets retain their respective rights and licenses.
+Project-authored source: [MIT](LICENSE). Third-party components retain their own notices and terms.
